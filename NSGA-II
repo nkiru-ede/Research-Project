@@ -1,0 +1,93 @@
+classfeatureFitness <- function(string) {
+  
+  inc <- which(string == 1)  #'inc' includes those features/variables for which 'string' contains 1
+  
+  if(sum(inc)==0)                          
+    return(0)                          
+  #print(inc)
+  
+  outcome <-"Attrition"
+  inputs <- paste(names(xx)[inc], collapse =" + ")
+  
+  fRpart <- as.formula(paste(outcome, inputs, sep=" ~ "))
+  
+  DT <- rpart(formula = fRpart, method="class", control = rpart.control(minsplit = 3),
+              data = dataDT)
+  
+  t_pred = predict(DT,dataDT, type='class')
+  
+  #Maximise accuracy
+  #return( mean(dataDT$Attrition == t_pred))
+  
+  #Wa <- 0.8
+  #Wf <- 0.2
+  
+  #Maximise accuracy 
+  return(( mean(dataDT$Attrition == t_pred) ))
+  
+  
+}
+
+
+getData <- function(){
+  data <- read_csv("employeedata.csv")
+  data_balanced_over <- ovun.sample(Attrition ~ ., data = data, method = "over",N = 2466)$data
+  dataDT <<- data_balanced_over
+  return (dataDT)
+  
+}
+
+
+
+# eval: transform objectives into minimization goal
+eval <- function(realx) {
+  x <- round(realx)     #NSGA-II evolves real numbers; turn them into binary values
+  return (c(sum(x),-classfeatureFitness(x)))
+}  
+
+runNSGA <- function(){
+  m = 2 #2 objectives: minimise features, and  error
+  data <- getData()
+  xx <<- data[,-ncol(data)]    #turn xx and yy into global variables with "<<-";
+  yy <<- data[,ncol(data)]
+  D=ncol(xx) # 5 bag prices
+  maxGen <<- 100
+  popsize <- 100
+  
+  
+  cat("NSGA-II begins:\n")
+  
+  #minimum value of prices is 1,1,1,1,1, and max is 1000,1000,1000,1000,1000
+  G=nsga2(fn=eval,idim=D,odim=m,
+          lower.bounds=rep(0,D),upper.bounds=rep(1,D),
+          popsize=popsize,generations=1:maxGen)
+  
+  # show best individuals:
+  I=which(G[[maxGen]]$pareto.optimal)
+  for(i in I)
+  {
+    x=round(G[[maxGen]]$par[i,])
+    cat(x," f=(",sum(x),",",classfeatureFitness(x),")","\n",sep=" ")
+  }
+  
+  return (G)
+}
+
+plotNSGA <- function(G){
+  I=1:maxGen
+  for(i in I)
+  { 
+    P=G[[i]]$value # objectives f1 and f2
+    # color from light gray (75) to dark (1):
+    COL=paste("gray",round(76-i*0.75),sep="")
+    if(i==1) plot(P,xlim=c(0,34),ylim=c(0,-1),
+                  main = "NSGA-II with Population Size = 200",xlab="Features",ylab="Accuracy",cex=0.5,col=COL)
+    Pareto=P[G[[i]]$pareto.optimal,]
+    # sort Pareto according to x axis:
+    I=sort.int(Pareto[,1],index.return=TRUE)
+    Pareto=Pareto[I$ix,]
+    points(P,type="p",pch=1,cex=0.5,col=COL)
+    lines(Pareto,type="l",cex=0.5,col=COL)
+  }
+  
+}
